@@ -2713,9 +2713,9 @@
         <h1>User Form</h1>
         <label>Nom</label>
         <input />
-        <button class="set-name">Save</button>
-        <button class="set-age" >Random age</button>
-        <button class="save-model" >Save model</button>
+        <button class="set-name">Mettre à jour</button>
+        <button class="set-age" >âge aléatoire</button>
+        <button class="save-model" >Enregistrer en BDD</button>
       </div>
     `;
     }
@@ -2730,14 +2730,27 @@
 
   // src/user/UserShow.ts
   var UserShow = class extends View {
+    constructor() {
+      super(...arguments);
+      this.onSelectClick = () => {
+        const event = new CustomEvent("userSelected", {
+          detail: this.model,
+          bubbles: true
+        });
+        this.parent.dispatchEvent(event);
+      };
+    }
     eventsMap() {
-      return {};
+      return {
+        "click:.select-user": this.onSelectClick
+      };
     }
     template() {
       return `
-      <div>
+      <div class="user-card">
         <div>User name: ${this.model.get("name")}</div>
         <div>User age: ${this.model.get("age")}</div>
+        <button class="select-user">S\xE9lectionner</button>
       </div>
     `;
     }
@@ -2765,12 +2778,58 @@
     }
   };
 
+  // src/framework/views/CollectionView.ts
+  var CollectionView = class {
+    constructor(parent, collection) {
+      this.parent = parent;
+      this.collection = collection;
+    }
+    render() {
+      this.parent.innerHTML = "";
+      const templateElement = document.createElement("template");
+      templateElement.innerHTML = '<div class="user-list"></div>';
+      const userListContainer = templateElement.content.querySelector(".user-list");
+      for (let model of this.collection.models) {
+        const itemParent = document.createElement("div");
+        this.renderItem(model, itemParent);
+        userListContainer?.appendChild(itemParent);
+      }
+      this.parent.append(templateElement.content);
+    }
+  };
+
+  // src/user/UserList.ts
+  var UserList = class extends CollectionView {
+    renderItem(model, itemParent) {
+      new UserShow(itemParent, model).render();
+    }
+  };
+
   // src/index.ts
   var rootElement = document.getElementById("root");
-  var john = User.build({ name: "John", age: 20 });
+  var users = User.buildCollection();
   if (rootElement) {
-    const userEdit = new UserEdit(rootElement, john);
-    userEdit.render();
-    console.log(userEdit);
+    const editContainer = document.createElement("div");
+    editContainer.className = "edit-container";
+    rootElement.appendChild(editContainer);
+    const listContainer = document.createElement("div");
+    listContainer.className = "list-container";
+    rootElement.appendChild(listContainer);
+    users.fetch();
+    const userList = new UserList(listContainer, users);
+    users.on("change", () => {
+      userList.render();
+      if (users.models.length > 0 && !editContainer.hasChildNodes()) {
+        const firstUser = users.models[0];
+        let userEdit = new UserEdit(editContainer, firstUser);
+        userEdit.render();
+      }
+    });
+    listContainer.addEventListener("userSelected", (event) => {
+      const customEvent = event;
+      const selectedUser = customEvent.detail;
+      const userEdit = new UserEdit(editContainer, selectedUser);
+      userEdit.render();
+    });
   }
 })();
